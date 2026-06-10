@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import RoutePanel from '@/components/RoutePanel';
 import StudentPanel from '@/components/StudentPanel';
@@ -17,9 +17,19 @@ export default function DashboardPage() {
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchData = useCallback(async () => {
+
+  const stopPolling = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  const fetchInitial = useCallback(async () => {
     try {
+      setIsLoading(true);
       const [routesRes, studentsRes, navRes] = await Promise.all([
         fetch('/api/routes'),
         fetch('/api/students'),
@@ -52,11 +62,49 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const fetchNavOnly = useCallback(async () => {
+    try {
+      const navRes = await fetch('/api/navigation');
+      const navJson = await navRes.json();
+      const rh = navJson.data?.routeHistory;
+      if (rh) {
+        setCurrentRouteHistory(rh);
+        setCurrentGPS(navJson.data?.currentGPS || null);
+        setAttendance(navJson.data?.attendance || []);
+      } else {
+        setCurrentRouteHistory(null);
+        setCurrentGPS(null);
+        setAttendance([]);
+        stopPolling();
+      }
+    } catch (err) {
+      console.error('Poll failed:', err);
+    }
+  }, []);
+
+  const startPolling = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(fetchNavOnly, 3000);
+  }, [fetchNavOnly]);
+
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 3000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchInitial();
+
+    return () => {
+      stopPolling();
+    };
+  }, [fetchInitial, stopPolling]);
+
+  // Start/stop polling based on active route
+  useEffect(() => {
+    if (currentRouteHistory) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+    return () => stopPolling();
+  }, [currentRouteHistory, startPolling, stopPolling]);
 
   const handleSelectRoute = useCallback((route: BusRoute) => {
     setSelectedRoute(route);
@@ -71,7 +119,7 @@ export default function DashboardPage() {
         body: JSON.stringify({ action: 'start', routeId }),
       });
       if (res.ok) {
-        await fetchData();
+        await fetchInitial();
       } else {
         const err = await res.json();
         console.error('Failed to start:', err.error);
@@ -81,7 +129,7 @@ export default function DashboardPage() {
     } finally {
       setActionLoading(false);
     }
-  }, [fetchData]);
+  }, [fetchInitial]);
 
   const handleStopRoute = useCallback(async () => {
     setActionLoading(true);
@@ -92,15 +140,19 @@ export default function DashboardPage() {
         body: JSON.stringify({ action: 'stop' }),
       });
       if (res.ok) {
+        setCurrentRouteHistory(null);
+        setCurrentGPS(null);
+        setAttendance([]);
         setSelectedRoute(null);
-        await fetchData();
+        stopPolling();
+        await fetchInitial().catch(() => { });
       }
     } catch (err) {
       console.error('Failed to stop route:', err);
     } finally {
       setActionLoading(false);
     }
-  }, [fetchData]);
+  }, [fetchInitial, stopPolling]);
 
   const selectedRouteStudents = selectedRoute
     ? students.filter((s) => selectedRoute.studentIds.includes(s.id))

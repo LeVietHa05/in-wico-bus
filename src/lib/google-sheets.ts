@@ -72,9 +72,17 @@ async function writeSheet(name: string, headers: string[], data: string[][]): Pr
 async function appendRows(name: string, values: string[][]): Promise<void> {
   const client = getClient();
   await ensureSheet(name);
-  await client.values.append({
+
+  const res = await client.values.get({
     spreadsheetId: sheetId(),
-    range: `${name}!A:Z`,
+    range: `${name}!A:A`,
+  });
+  const lastRow = (res.data.values || []).length;
+  const startRow = Math.max(lastRow + 1, 1);
+
+  await client.values.update({
+    spreadsheetId: sheetId(),
+    range: `${name}!A${startRow}`,
     valueInputOption: 'RAW',
     requestBody: { values },
   });

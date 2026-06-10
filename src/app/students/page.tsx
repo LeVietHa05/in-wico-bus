@@ -12,6 +12,8 @@ export default function StudentsPage() {
   const [formName, setFormName] = useState('');
   const [formRfid, setFormRfid] = useState('');
   const [formRouteIds, setFormRouteIds] = useState<string[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -38,6 +40,8 @@ export default function StudentsPage() {
     setFormRouteIds([]);
     setEditingId(null);
     setShowForm(false);
+    setErrors([]);
+    setSubmitting(false);
   };
 
   const openEdit = (student: Student) => {
@@ -46,6 +50,8 @@ export default function StudentsPage() {
     setFormRouteIds(student.routeIds);
     setEditingId(student.id);
     setShowForm(true);
+    setErrors([]);
+    setSubmitting(false);
   };
 
   const handleToggleRoute = (routeId: string) => {
@@ -58,7 +64,14 @@ export default function StudentsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim() || !formRfid.trim()) return;
+    setErrors([]);
+
+    const errs: string[] = [];
+    if (!formName.trim()) errs.push('Student name is required');
+    if (!formRfid.trim()) errs.push('RFID tag is required');
+    if (errs.length > 0) { setErrors(errs); return; }
+
+    setSubmitting(true);
 
     const url = editingId ? `/api/students/${editingId}` : '/api/students';
     const method = editingId ? 'PUT' : 'POST';
@@ -79,10 +92,12 @@ export default function StudentsPage() {
         fetchData();
       } else {
         const err = await res.json();
-        alert(err.error || 'Failed to save student');
+        setErrors([err.error || 'Failed to save student']);
+        setSubmitting(false);
       }
-    } catch (err) {
-      console.error('Failed to save student:', err);
+    } catch {
+      setErrors(['Failed to save student. Check your connection.']);
+      setSubmitting(false);
     }
   };
 
@@ -116,6 +131,14 @@ export default function StudentsPage() {
           <h2 className="text-base font-semibold mb-4">
             {editingId ? 'Edit Student' : 'New Student'}
           </h2>
+
+          {errors.length > 0 && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              {errors.map((err, i) => (
+                <p key={i} className="text-sm text-red-700">{err}</p>
+              ))}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
@@ -174,15 +197,20 @@ export default function StudentsPage() {
             <button
               type="button"
               onClick={resetForm}
-              className="px-4 py-2 border border-[var(--border)] text-sm rounded-md hover:bg-gray-50 transition-colors"
+              disabled={submitting}
+              className="px-4 py-2 border border-[var(--border)] text-sm rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-[var(--primary)] text-white text-sm font-medium rounded-md hover:bg-[var(--primary-light)] transition-colors"
+              disabled={submitting}
+              className="px-4 py-2 bg-[var(--primary)] text-white text-sm font-medium rounded-md hover:bg-[var(--primary-light)] transition-colors disabled:opacity-50 flex items-center gap-2"
             >
-              {editingId ? 'Update' : 'Create'}
+              {submitting && (
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {submitting ? 'Saving...' : editingId ? 'Update' : 'Create'}
             </button>
           </div>
         </form>

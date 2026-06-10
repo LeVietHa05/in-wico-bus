@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStudents, saveStudents } from '@/lib/google-sheets';
-import { Student } from '@/lib/types';
+import { getStudents, saveStudents, getRoutes, saveRoutes } from '@/lib/google-sheets';
+import { Student, BusRoute } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
+
+async function syncStudentToRoutes(studentId: string, routeIds: string[], allRoutes: BusRoute[]): Promise<void> {
+  for (const route of allRoutes) {
+    const hadStudent = route.studentIds.includes(studentId);
+    const shouldHave = routeIds.includes(route.id);
+    if (hadStudent && !shouldHave) {
+      route.studentIds = route.studentIds.filter((id) => id !== studentId);
+    } else if (!hadStudent && shouldHave) {
+      route.studentIds.push(studentId);
+    }
+  }
+  await saveRoutes(allRoutes);
+}
 
 export async function GET() {
   try {
@@ -36,6 +49,11 @@ export async function POST(request: NextRequest) {
 
     students.push(newStudent);
     await saveStudents(students);
+
+    if (newStudent.routeIds.length > 0) {
+      const routes = await getRoutes();
+      await syncStudentToRoutes(newStudent.id, newStudent.routeIds, routes);
+    }
 
     return NextResponse.json({ data: newStudent }, { status: 201 });
   } catch {

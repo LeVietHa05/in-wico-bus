@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { BusRoute, Stop } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
+
+const StopPickerMap = dynamic(() => import('@/components/StopPickerMap'), { ssr: false });
 
 const defaultStop = (order: number): Stop => ({
   id: uuidv4(),
@@ -19,6 +22,9 @@ export default function RoutesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState('');
   const [formStops, setFormStops] = useState<Stop[]>([defaultStop(0)]);
+  const [pickingIndex, setPickingIndex] = useState<number | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const fetchRoutes = useCallback(async () => {
     try {
@@ -39,6 +45,9 @@ export default function RoutesPage() {
     setFormStops([defaultStop(0)]);
     setEditingId(null);
     setShowForm(false);
+    setPickingIndex(null);
+    setErrors([]);
+    setSubmitting(false);
   };
 
   const openEdit = (route: BusRoute) => {
@@ -46,6 +55,9 @@ export default function RoutesPage() {
     setFormStops(route.stops.length > 0 ? route.stops : [defaultStop(0)]);
     setEditingId(route.id);
     setShowForm(true);
+    setPickingIndex(null);
+    setErrors([]);
+    setSubmitting(false);
   };
 
   const handleAddStop = () => {
@@ -54,19 +66,48 @@ export default function RoutesPage() {
 
   const handleRemoveStop = (index: number) => {
     setFormStops(formStops.filter((_, i) => i !== index).map((s, i) => ({ ...s, order: i })));
+    if (pickingIndex === index) setPickingIndex(null);
   };
 
   const handleStopChange = (index: number, field: keyof Stop, value: string | number) => {
     const updated = [...formStops];
     (updated[index] as any)[field] = value;
     setFormStops(updated);
+    setErrors([]);
+  };
+
+  const handleMapPick = (lat: number, lng: number) => {
+    if (pickingIndex === null) return;
+    const updated = [...formStops];
+    updated[pickingIndex] = { ...updated[pickingIndex], lat, lng };
+    setFormStops(updated);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim()) return;
+    setErrors([]);
+
+    const errs: string[] = [];
+    if (!formName.trim()) errs.push('Route name is required');
+
+    for (let i = 0; i < formStops.length; i++) {
+      const s = formStops[i];
+      const stopNum = i + 1;
+      if (!s.name.trim()) {
+        errs.push(`Stop #${stopNum}: name is required`);
+      } else if (!s.lat && !s.lng) {
+        errs.push(`Stop #${stopNum} ("${s.name.trim()}"): click 📍 then map to set location`);
+      }
+    }
+
+    if (errs.length > 0) {
+      setErrors(errs);
+      return;
+    }
 
     const validStops = formStops.filter((s) => s.name.trim());
+
+    setSubmitting(true);
 
     const url = editingId ? `/api/routes/${editingId}` : '/api/routes';
     const method = editingId ? 'PUT' : 'POST';
@@ -84,9 +125,14 @@ export default function RoutesPage() {
       if (res.ok) {
         resetForm();
         fetchRoutes();
+      } else {
+        const errJson = await res.json();
+        setErrors([errJson.error || 'Failed to save route']);
+        setSubmitting(false);
       }
-    } catch (err) {
-      console.error('Failed to save route:', err);
+    } catch {
+      setErrors(['Failed to save route. Check your connection.']);
+      setSubmitting(false);
     }
   };
 
@@ -101,7 +147,7 @@ export default function RoutesPage() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto w-full">
+    <div className="p-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Route Management</h1>
@@ -121,6 +167,14 @@ export default function RoutesPage() {
             {editingId ? 'Edit Route' : 'New Route'}
           </h2>
 
+          {errors.length > 0 && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              {errors.map((err, i) => (
+                <p key={i} className="text-sm text-red-700">{err}</p>
+              ))}
+            </div>
+          )}
+
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">Route Name</label>
             <input
@@ -133,71 +187,116 @@ export default function RoutesPage() {
             />
           </div>
 
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">Stops</label>
-              <button
-                type="button"
-                onClick={handleAddStop}
-                className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-              >
-                + Add Stop
-              </button>
+          <div className="flex gap-4">
+            <div className="w-1/2">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700">Stops</label>
+                <button
+                  type="button"
+                  onClick={handleAddStop}
+                  className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  + Add Stop
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {formStops.map((stop, i) => {
+                  const isPicking = pickingIndex === i;
+                  return (
+                    <div
+                      key={stop.id}
+                      className={`flex items-center gap-1.5 p-1.5 rounded-md transition-colors ${
+                        isPicking ? 'bg-red-50 ring-2 ring-red-300' : ''
+                      }`}
+                    >
+                      <span className="text-xs text-gray-400 w-5 text-center shrink-0">{i + 1}.</span>
+                      <input
+                        type="text"
+                        value={stop.name}
+                        onChange={(e) => handleStopChange(i, 'name', e.target.value)}
+                        placeholder="Stop name (required)"
+                        className="w-28 px-2 py-1.5 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      />
+                      <input
+                        type="number"
+                        step="any"
+                        value={stop.lat || ''}
+                        onChange={(e) => handleStopChange(i, 'lat', parseFloat(e.target.value) || 0)}
+                        placeholder="Lat"
+                        className="w-20 px-2 py-1.5 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      />
+                      <input
+                        type="number"
+                        step="any"
+                        value={stop.lng || ''}
+                        onChange={(e) => handleStopChange(i, 'lng', parseFloat(e.target.value) || 0)}
+                        placeholder="Lng"
+                        className="w-20 px-2 py-1.5 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPickingIndex(isPicking ? null : i)}
+                        className={`px-1.5 py-1 text-xs rounded-md transition-colors ${
+                          isPicking
+                            ? 'bg-red-500 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                        title="Pick from map"
+                      >
+                        📍
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveStop(i)}
+                        className="text-red-400 hover:text-red-600 text-sm px-1"
+                        disabled={formStops.length === 1}
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="space-y-2">
-              {formStops.map((stop, i) => (
-                <div key={stop.id} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 w-5 text-center">{i + 1}.</span>
-                  <input
-                    type="text"
-                    value={stop.name}
-                    onChange={(e) => handleStopChange(i, 'name', e.target.value)}
-                    placeholder="Stop name"
-                    className="flex-1 px-3 py-1.5 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+            <div className="w-1/2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {pickingIndex !== null
+                  ? `Click map to set location for stop #${pickingIndex + 1}`
+                  : 'Click 📍 on a stop to pick its location'}
+              </label>
+              <div className={`rounded-lg overflow-hidden border-2 transition-colors ${
+                pickingIndex !== null ? 'border-red-400' : 'border-[var(--border)]'
+              }`} style={{ height: 320 }}>
+                {typeof window !== 'undefined' && (
+                  <StopPickerMap
+                    stops={formStops.filter((s) => s.lat !== 0 || s.lng !== 0)}
+                    onPick={handleMapPick}
                   />
-                  <input
-                    type="number"
-                    step="any"
-                    value={stop.lat || ''}
-                    onChange={(e) => handleStopChange(i, 'lat', parseFloat(e.target.value) || 0)}
-                    placeholder="Lat"
-                    className="w-24 px-2 py-1.5 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                  />
-                  <input
-                    type="number"
-                    step="any"
-                    value={stop.lng || ''}
-                    onChange={(e) => handleStopChange(i, 'lng', parseFloat(e.target.value) || 0)}
-                    placeholder="Lng"
-                    className="w-24 px-2 py-1.5 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveStop(i)}
-                    className="text-red-500 hover:text-red-700 text-sm px-2"
-                    disabled={formStops.length === 1}
-                  >
-                    &times;
-                  </button>
-                </div>
-              ))}
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="flex gap-2 justify-end">
+          <div className="flex gap-2 justify-end mt-4">
             <button
               type="button"
               onClick={resetForm}
-              className="px-4 py-2 border border-[var(--border)] text-sm rounded-md hover:bg-gray-50 transition-colors"
+              disabled={submitting}
+              className="px-4 py-2 border border-[var(--border)] text-sm rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-[var(--primary)] text-white text-sm font-medium rounded-md hover:bg-[var(--primary-light)] transition-colors"
+              disabled={submitting}
+              className="px-4 py-2 bg-[var(--primary)] text-white text-sm font-medium rounded-md hover:bg-[var(--primary-light)] transition-colors disabled:opacity-50 flex items-center gap-2"
             >
-              {editingId ? 'Update' : 'Create'}
+              {submitting && (
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {submitting ? 'Saving...' : editingId ? 'Update' : 'Create'}
             </button>
           </div>
         </form>

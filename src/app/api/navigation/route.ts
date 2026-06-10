@@ -3,7 +3,7 @@ import {
   getNavState, setNavState, getGPSData, getAttendance,
   setRouteHistory, getRouteHistory, updateRouteHistory, clearRouteHistory,
 } from '@/lib/store';
-import { getRoutes, appendRouteHistory } from '@/lib/google-sheets';
+import { getRoutes, appendRouteHistory, saveRouteHistories, getRouteHistories } from '@/lib/google-sheets';
 import { RouteHistory } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -95,16 +95,34 @@ export async function POST(request: NextRequest) {
       const attendance = getAttendance(rhId);
       const total = rh.attendanceStr.split('/')[1] || '0';
       const present = attendance.filter((a) => a.isPresent).length;
-      const updatedRh = updateRouteHistory(rhId, {
-        endTime: new Date().toISOString(),
+      const endTime = new Date().toISOString();
+
+      const finalRh: RouteHistory = {
+        ...rh,
+        endTime,
         attendanceStr: `${present}/${total}`,
         status: 'end',
-      });
+      };
+
+      setRouteHistory(finalRh);
+
+      try {
+        const persisted = await getRouteHistories();
+        const idx = persisted.findIndex((h) => h.id === rhId);
+        if (idx >= 0) {
+          persisted[idx] = finalRh;
+          await saveRouteHistories(persisted);
+        } else {
+          await appendRouteHistory(finalRh);
+        }
+      } catch {
+        // best-effort persistence
+      }
 
       clearRouteHistory(rhId);
       setNavState({ currentRouteHistoryId: null, startedAt: null });
 
-      return NextResponse.json({ data: updatedRh });
+      return NextResponse.json({ data: finalRh });
     }
 
     return NextResponse.json({ error: 'Invalid action. Use "start" or "stop"' }, { status: 400 });

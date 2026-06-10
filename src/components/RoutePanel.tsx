@@ -46,15 +46,29 @@ export default function RoutePanel({
           <div className="bg-green-50 border-b border-[var(--border)] p-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-medium text-sm text-green-800">Active Trip</h3>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-                running
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                currentRouteHistory.status === 'end'
+                  ? 'bg-gray-100 text-gray-600'
+                  : 'bg-green-100 text-green-700'
+              }`}>
+                {currentRouteHistory.status}
               </span>
             </div>
             <p className="text-xs text-green-700 font-medium mb-2">{activeRoute.name}</p>
             <p className="text-xs text-gray-500 mb-1">
               Attendance: {currentRouteHistory.attendanceStr}
             </p>
-            <div className="space-y-1">
+            {currentRouteHistory.startTime && (
+              <p className="text-xs text-gray-400 mb-1">
+                Started: {new Date(currentRouteHistory.startTime).toLocaleTimeString()}
+              </p>
+            )}
+            {currentRouteHistory.endTime && (
+              <p className="text-xs text-gray-400 mb-1">
+                Ended: {new Date(currentRouteHistory.endTime).toLocaleTimeString()}
+              </p>
+            )}
+            <div className="space-y-1 mt-2">
               {currentRouteHistory.stopsProgress.map((sp, i) => {
                 const arrived = sp.arrivalTime !== null;
                 return (
@@ -72,12 +86,14 @@ export default function RoutePanel({
                 );
               })}
             </div>
-            <button
-              onClick={onStopRoute}
-              className="mt-3 w-full px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-md hover:bg-red-700 transition-colors"
-            >
-              Stop Navigation
-            </button>
+            {currentRouteHistory.status === 'running' && (
+              <button
+                onClick={onStopRoute}
+                className="mt-3 w-full px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-md hover:bg-red-700 transition-colors"
+              >
+                Stop Navigation
+              </button>
+            )}
           </div>
         )}
 

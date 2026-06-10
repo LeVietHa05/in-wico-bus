@@ -5,7 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Stop } from '@/lib/types';
 
-const defaultCenter: [number, number] = [-6.2088, 106.8456];
+const defaultCenter: [number, number] = [21.010055759332513, 105.7948062944532];
 
 interface MapProps {
   stops?: Stop[];
