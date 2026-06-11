@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRoutes, saveRoutes } from '@/lib/google-sheets';
+import { invalidateRoutePathCache } from '@/lib/store';
 
 export async function GET(
   _request: NextRequest,
@@ -33,6 +34,7 @@ export async function PUT(
 
     routes[idx] = { ...routes[idx], ...body, id };
     await saveRoutes(routes);
+    invalidateRoutePathCache(id);
 
     return NextResponse.json({ data: routes[idx] });
   } catch {
@@ -52,6 +54,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Route not found' }, { status: 404 });
     }
     await saveRoutes(filtered);
+    invalidateRoutePathCache(id);
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'Failed to delete route' }, { status: 500 });

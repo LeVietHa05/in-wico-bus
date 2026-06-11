@@ -61,3 +61,16 @@ export interface NavState {
   currentRouteHistoryId: string | null;
   startedAt: string | null;
 }
+
+export interface RoutePathSegment {
+  coordinates: [number, number][];
+  distance: number;
+  duration: number;
+}
+
+export interface RoutePath {
+  segments: RoutePathSegment[];
+  totalDistance: number;
+  totalDuration: number;
+  geometry: [number, number][];
+}

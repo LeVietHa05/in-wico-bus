@@ -1,6 +1,6 @@
 'use client';
 
-import { BusRoute, GPSData, RouteHistory } from '@/lib/types';
+import { BusRoute, GPSData, RouteHistory, RoutePath } from '@/lib/types';
 
 interface RoutePanelProps {
   routes: BusRoute[];
@@ -10,6 +10,7 @@ interface RoutePanelProps {
   onStartRoute: (routeId: string) => void;
   onStopRoute: () => void;
   isLoading: boolean;
+  routePath?: RoutePath | null;
 }
 
 export default function RoutePanel({
@@ -20,6 +21,7 @@ export default function RoutePanel({
   onStartRoute,
   onStopRoute,
   isLoading,
+  routePath,
 }: RoutePanelProps) {
   const activeRoute = currentRouteHistory
     ? routes.find((r) => r.id === currentRouteHistory.routeId)
@@ -58,6 +60,11 @@ export default function RoutePanel({
             <p className="text-xs text-gray-500 mb-1">
               Attendance: {currentRouteHistory.attendanceStr}
             </p>
+            {routePath && routePath.totalDistance > 0 && (
+              <p className="text-xs text-gray-500 mb-1">
+                Total: ~{Math.round(routePath.totalDuration / 60)} min ({(routePath.totalDistance / 1000).toFixed(1)} km)
+              </p>
+            )}
             {currentRouteHistory.startTime && (
               <p className="text-xs text-gray-400 mb-1">
                 Started: {new Date(currentRouteHistory.startTime).toLocaleTimeString()}
@@ -71,15 +78,20 @@ export default function RoutePanel({
             <div className="space-y-1 mt-2">
               {currentRouteHistory.stopsProgress.map((sp, i) => {
                 const arrived = sp.arrivalTime !== null;
+                const seg = i > 0 ? routePath?.segments?.[i - 1] : null;
                 return (
                   <div key={sp.stopId} className="flex items-center gap-2 text-xs">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${arrived ? 'bg-green-500' : 'bg-gray-300'}`} />
                     <span className={arrived ? 'text-green-700' : 'text-gray-500'}>
                       {i + 1}. {sp.name}
                     </span>
-                    {arrived && (
+                    {arrived ? (
                       <span className="text-gray-400 ml-auto">
                         {new Date(sp.arrivalTime!).toLocaleTimeString()}
+                      </span>
+                    ) : seg && seg.duration > 0 && (
+                      <span className="text-gray-400 ml-auto">
+                        ~{Math.round(seg.duration / 60)} min
                       </span>
                     )}
                   </div>

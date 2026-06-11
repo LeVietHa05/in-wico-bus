@@ -11,6 +11,7 @@ interface MapProps {
   stops?: Stop[];
   currentLocation?: { lat: number; lng: number } | null;
   visitedStopIds?: string[];
+  routeGeometry?: [number, number][];
 }
 
 function createNumberIcon(n: number, visited: boolean): L.DivIcon {
@@ -41,9 +42,10 @@ const busIcon = L.divIcon({
   className: '',
 });
 
-export default function Map({ stops = [], currentLocation = null, visitedStopIds = [] }: MapProps) {
+export default function Map({ stops = [], currentLocation = null, visitedStopIds = [], routeGeometry }: MapProps) {
   const sortedStops = [...stops].sort((a, b) => a.order - b.order);
-  const path: [number, number][] = sortedStops.map((s) => [s.lat, s.lng]);
+  const straightPath: [number, number][] = sortedStops.map((s) => [s.lat, s.lng]);
+  const hasRouteGeometry = routeGeometry && routeGeometry.length > 1;
   const center: [number, number] = currentLocation
     ? [currentLocation.lat, currentLocation.lng]
     : sortedStops.length > 0
@@ -61,10 +63,15 @@ export default function Map({ stops = [], currentLocation = null, visitedStopIds
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {path.length > 1 && (
+      {hasRouteGeometry ? (
         <Polyline
-          positions={path}
-          pathOptions={{ color: '#3b82f6', opacity: 0.8, weight: 3 }}
+          positions={routeGeometry}
+          pathOptions={{ color: '#3b82f6', opacity: 0.8, weight: 4 }}
+        />
+      ) : straightPath.length > 1 && (
+        <Polyline
+          positions={straightPath}
+          pathOptions={{ color: '#3b82f6', opacity: 0.5, weight: 2, dashArray: '8 4' }}
         />
       )}
       {sortedStops.map((stop, i) => (

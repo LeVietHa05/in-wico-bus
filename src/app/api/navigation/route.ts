@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getNavState, setNavState, getGPSData, getAttendance,
   setRouteHistory, getRouteHistory, updateRouteHistory, clearRouteHistory,
+  getCachedRoutePath, setCachedRoutePath,
 } from '@/lib/store';
 import { getRoutes, appendRouteHistory, saveRouteHistories, getRouteHistories } from '@/lib/google-sheets';
 import { RouteHistory } from '@/lib/types';
+import { fetchORSDrivePath } from '@/lib/openroute';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function GET() {
@@ -12,6 +14,7 @@ export async function GET() {
     const state = getNavState();
     let routeHistory = null;
     let gps = null;
+    let routePath = null;
     let attendance: Array<{ studentId: string; studentName: string; isPresent: boolean; timestamp: string }> = [];
 
     if (state.currentRouteHistoryId) {
@@ -19,6 +22,7 @@ export async function GET() {
       if (routeHistory) {
         gps = getGPSData(routeHistory.routeId) || null;
         attendance = getAttendance(state.currentRouteHistoryId);
+        routePath = getCachedRoutePath(routeHistory.routeId) || null;
       }
     }
 
@@ -28,6 +32,7 @@ export async function GET() {
         routeHistory,
         currentGPS: gps,
         attendance,
+        routePath,
       },
     });
   } catch {
@@ -75,6 +80,16 @@ export async function POST(request: NextRequest) {
         await appendRouteHistory(rh);
       } catch {
         // best-effort persistence
+      }
+
+      try {
+        const cached = getCachedRoutePath(routeId);
+        if (!cached) {
+          const routePath = await fetchORSDrivePath(route.stops);
+          setCachedRoutePath(routeId, routePath);
+        }
+      } catch {
+        // directions are optional; fall back to straight-line
       }
 
       return NextResponse.json({ data: rh });

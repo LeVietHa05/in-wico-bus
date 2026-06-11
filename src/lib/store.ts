@@ -1,4 +1,4 @@
-import { GPSData, Attendance, NavState, RouteHistory, Stop } from './types';
+import { GPSData, Attendance, NavState, RouteHistory, Stop, RoutePath } from './types';
 
 const gpsStore = new Map<string, GPSData>();
 const attendanceStore = new Map<string, Attendance[]>();
@@ -7,6 +7,8 @@ const navState: NavState = {
   currentRouteHistoryId: null,
   startedAt: null,
 };
+
+const routePathCache = new Map<string, RoutePath>();
 
 export function setGPSData(data: GPSData): void {
   gpsStore.set(data.routeId, data);
@@ -71,6 +73,18 @@ export function clearRouteData(routeId: string): void {
 export function clearRouteHistory(routeHistoryId: string): void {
   routeHistoryStore.delete(routeHistoryId);
   attendanceStore.delete(routeHistoryId);
+}
+
+export function setCachedRoutePath(routeId: string, path: RoutePath): void {
+  routePathCache.set(routeId, path);
+}
+
+export function getCachedRoutePath(routeId: string): RoutePath | undefined {
+  return routePathCache.get(routeId);
+}
+
+export function invalidateRoutePathCache(routeId: string): void {
+  routePathCache.delete(routeId);
 }
 
 const STOP_THRESHOLD_METERS = 50;
