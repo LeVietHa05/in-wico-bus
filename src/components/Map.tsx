@@ -74,13 +74,16 @@ export default function Map({ stops = [], currentLocation = null, visitedStopIds
           pathOptions={{ color: '#3b82f6', opacity: 0.5, weight: 2, dashArray: '8 4' }}
         />
       )}
-      {sortedStops.map((stop, i) => (
-        <Marker
-          key={stop.id}
-          position={[stop.lat, stop.lng]}
-          icon={createNumberIcon(i + 1, visitedStopIds.includes(stop.id))}
-        />
-      ))}
+      {sortedStops.map((stop, i) => {
+        const visited = visitedStopIds.includes(stop.id);
+        return (
+          <Marker
+            key={`${stop.id}-${visited ? 'v' : 'u'}`}
+            position={[stop.lat, stop.lng]}
+            icon={createNumberIcon(i + 1, visited)}
+          />
+        );
+      })}
       {currentLocation && (
         <Marker
           position={[currentLocation.lat, currentLocation.lng]}

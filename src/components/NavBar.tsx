@@ -11,6 +11,7 @@ export default function NavBar() {
     { href: '/routes', label: 'Routes' },
     { href: '/students', label: 'Students' },
     { href: '/attendance', label: 'Attendance' },
+    { href: '/simulate', label: 'Simulate' },
   ];
 
   return (
