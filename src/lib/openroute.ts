@@ -60,6 +60,38 @@ function parseGeometry(geometry: unknown): [number, number][] {
   return [];
 }
 
+export async function fetchORSGuidance(
+  fromLat: number, fromLng: number,
+  toLat: number, toLng: number
+): Promise<{ geometry: [number, number][]; distance: number; duration: number }> {
+  const coordinates: [number, number][] = [[fromLng, fromLat], [toLng, toLat]];
+
+  const res = await fetch(ORS_BASE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      Authorization: orsApiKey(),
+      Accept: 'application/json, application/geo+json',
+    },
+    body: JSON.stringify({ coordinates, geometry: true, units: 'm' }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`ORS guidance API error ${res.status}: ${body}`);
+  }
+
+  const data = await res.json();
+  const route = data.routes?.[0];
+  if (!route) throw new Error('ORS returned no routes');
+
+  return {
+    geometry: parseGeometry(route.geometry),
+    distance: route.summary?.distance || 0,
+    duration: route.summary?.duration || 0,
+  };
+}
+
 export async function fetchORSDrivePath(stops: Stop[]): Promise<RoutePath> {
   if (stops.length < 2) {
     const pt: [number, number] = stops.length === 1 ? [stops[0].lat, stops[0].lng] : [21.010055759332513, 105.7948062944532];

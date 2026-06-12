@@ -1,4 +1,4 @@
-import { GPSData, Attendance, NavState, RouteHistory, Stop, RoutePath } from './types';
+import { GPSData, Attendance, NavState, RouteHistory, Stop, RoutePath, NextStopGuidance } from './types';
 
 const gpsStore = new Map<string, GPSData>();
 const attendanceStore = new Map<string, Attendance[]>();
@@ -9,6 +9,7 @@ const navState: NavState = {
 };
 
 const routePathCache = new Map<string, RoutePath>();
+const guidanceCache = new Map<string, { data: { distanceMeters: number; durationSeconds: number; geometry: [number, number][] }; fetchedAt: number }>();
 
 export function setGPSData(data: GPSData): void {
   gpsStore.set(data.routeId, data);
@@ -85,6 +86,47 @@ export function getCachedRoutePath(routeId: string): RoutePath | undefined {
 
 export function invalidateRoutePathCache(routeId: string): void {
   routePathCache.delete(routeId);
+}
+
+export function setGuidanceCache(
+  key: string,
+  data: { distanceMeters: number; durationSeconds: number; geometry: [number, number][] }
+): void {
+  guidanceCache.set(key, { data, fetchedAt: Date.now() });
+}
+
+export function getGuidanceCache(key: string): { distanceMeters: number; durationSeconds: number; geometry: [number, number][] } | null {
+  const entry = guidanceCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.fetchedAt > 5000) {
+    guidanceCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+export function invalidateGuidanceCache(routeId: string): void {
+  for (const key of guidanceCache.keys()) {
+    if (key.startsWith(`guidance:${routeId}:`)) guidanceCache.delete(key);
+  }
+}
+
+export function findNearestUnvisitedStop(
+  busLat: number,
+  busLng: number,
+  stops: Stop[],
+  stopsProgress: { stopId: string; arrivalTime: string | null }[]
+): { stopIndex: number; stop: Stop; distance: number } | null {
+  let best: { stopIndex: number; stop: Stop; distance: number } | null = null;
+  for (let i = 0; i < stops.length; i++) {
+    const progress = stopsProgress[i];
+    if (!progress || progress.arrivalTime !== null) continue;
+    const dist = haversineDistance(busLat, busLng, stops[i].lat, stops[i].lng);
+    if (!best || dist < best.distance) {
+      best = { stopIndex: i, stop: stops[i], distance: dist };
+    }
+  }
+  return best;
 }
 
 const STOP_THRESHOLD_METERS = 50;

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import RoutePanel from '@/components/RoutePanel';
 import StudentPanel from '@/components/StudentPanel';
-import { BusRoute, Student, GPSData, Attendance, RouteHistory, RoutePath } from '@/lib/types';
+import { BusRoute, Student, GPSData, Attendance, RouteHistory, RoutePath, NextStopGuidance } from '@/lib/types';
 
 const Map = dynamic(() => import('@/components/Map'), { ssr: false });
 
@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [currentGPS, setCurrentGPS] = useState<GPSData | null>(null);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [routePath, setRoutePath] = useState<RoutePath | null>(null);
+  const [nextStopGuidance, setNextStopGuidance] = useState<NextStopGuidance | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -50,6 +51,7 @@ export default function DashboardPage() {
         setCurrentGPS(navJson.data?.currentGPS || null);
         setAttendance(navJson.data?.attendance || []);
         setRoutePath(navJson.data?.routePath || null);
+        setNextStopGuidance(navJson.data?.nextStopGuidance || null);
         const activeRoute = routesJson.data?.find((r: BusRoute) => r.id === rh.routeId);
         if (activeRoute) setSelectedRoute(activeRoute);
       } else {
@@ -57,6 +59,7 @@ export default function DashboardPage() {
         setCurrentGPS(null);
         setAttendance([]);
         setRoutePath(null);
+        setNextStopGuidance(null);
       }
     } catch (err) {
       console.error('Failed to fetch data:', err);
@@ -75,11 +78,13 @@ export default function DashboardPage() {
         setCurrentGPS(navJson.data?.currentGPS || null);
         setAttendance(navJson.data?.attendance || []);
         setRoutePath(navJson.data?.routePath || null);
+        setNextStopGuidance(navJson.data?.nextStopGuidance || null);
       } else {
         setCurrentRouteHistory(null);
         setCurrentGPS(null);
         setAttendance([]);
         setRoutePath(null);
+        setNextStopGuidance(null);
         stopPolling();
       }
     } catch (err) {
@@ -149,6 +154,7 @@ export default function DashboardPage() {
         setCurrentGPS(null);
         setAttendance([]);
         setRoutePath(null);
+        setNextStopGuidance(null);
         setSelectedRoute(null);
         stopPolling();
         await fetchInitial().catch(() => { });
@@ -179,6 +185,7 @@ export default function DashboardPage() {
           onStopRoute={handleStopRoute}
           isLoading={isLoading || actionLoading}
           routePath={routePath}
+          nextStopGuidance={nextStopGuidance}
         />
       </div>
 
@@ -188,6 +195,7 @@ export default function DashboardPage() {
           currentLocation={currentGPS ? { lat: currentGPS.lat, lng: currentGPS.lng } : null}
           visitedStopIds={visitedStops.map((s) => s.stopId)}
           routeGeometry={routePath?.geometry}
+          nextStopGuidance={nextStopGuidance}
         />
         {currentRouteHistory && (
           <div className="absolute top-4 left-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-md text-sm font-medium flex items-center gap-2">

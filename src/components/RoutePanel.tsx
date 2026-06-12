@@ -1,6 +1,6 @@
 'use client';
 
-import { BusRoute, GPSData, RouteHistory, RoutePath } from '@/lib/types';
+import { BusRoute, GPSData, RouteHistory, RoutePath, NextStopGuidance } from '@/lib/types';
 
 interface RoutePanelProps {
   routes: BusRoute[];
@@ -11,6 +11,7 @@ interface RoutePanelProps {
   onStopRoute: () => void;
   isLoading: boolean;
   routePath?: RoutePath | null;
+  nextStopGuidance?: NextStopGuidance | null;
 }
 
 export default function RoutePanel({
@@ -22,6 +23,7 @@ export default function RoutePanel({
   onStopRoute,
   isLoading,
   routePath,
+  nextStopGuidance,
 }: RoutePanelProps) {
   const activeRoute = currentRouteHistory
     ? routes.find((r) => r.id === currentRouteHistory.routeId)
@@ -75,19 +77,46 @@ export default function RoutePanel({
                 Ended: {new Date(currentRouteHistory.endTime).toLocaleTimeString()}
               </p>
             )}
+            {nextStopGuidance && currentRouteHistory.status === 'running' && (
+              <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-md">
+                <p className="text-[11px] font-semibold text-orange-700 uppercase tracking-wider mb-1">Next Stop</p>
+                <p className="text-sm font-medium text-orange-800">
+                  {nextStopGuidance.stopName}
+                </p>
+                <p className="text-xs text-orange-600 mt-0.5">
+                  {nextStopGuidance.distanceMeters < 1000
+                    ? `${Math.round(nextStopGuidance.distanceMeters)} m`
+                    : `${(nextStopGuidance.distanceMeters / 1000).toFixed(1)} km`}
+                  {nextStopGuidance.durationSeconds > 0 && ` · ~${Math.round(nextStopGuidance.durationSeconds / 60)} min`}
+                </p>
+              </div>
+            )}
+
             <div className="space-y-1 mt-2">
               {currentRouteHistory.stopsProgress.map((sp, i) => {
                 const arrived = sp.arrivalTime !== null;
+                const recommended = nextStopGuidance?.stopIndex === i;
                 const seg = i > 0 ? routePath?.segments?.[i - 1] : null;
+                let dotColor = 'bg-gray-300';
+                if (arrived) dotColor = 'bg-green-500';
+                else if (recommended) dotColor = 'bg-orange-500';
+                let textColor = 'text-gray-500';
+                if (arrived) textColor = 'text-green-700';
+                else if (recommended) textColor = 'text-orange-700';
+                if (recommended) dotColor += ' ring-2 ring-orange-300';
                 return (
-                  <div key={sp.stopId} className="flex items-center gap-2 text-xs">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${arrived ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className={arrived ? 'text-green-700' : 'text-gray-500'}>
+                  <div key={sp.stopId} className={`flex items-center gap-2 text-xs ${recommended ? 'bg-orange-50 -mx-2 px-2 py-0.5 rounded' : ''}`}>
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
+                    <span className={textColor}>
                       {i + 1}. {sp.name}
                     </span>
                     {arrived ? (
                       <span className="text-gray-400 ml-auto">
                         {new Date(sp.arrivalTime!).toLocaleTimeString()}
+                      </span>
+                    ) : recommended && nextStopGuidance?.durationSeconds ? (
+                      <span className="text-orange-500 ml-auto font-medium">
+                        ~{Math.round(nextStopGuidance.durationSeconds / 60)} min
                       </span>
                     ) : seg && seg.duration > 0 && (
                       <span className="text-gray-400 ml-auto">

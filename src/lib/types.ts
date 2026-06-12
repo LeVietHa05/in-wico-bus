@@ -74,3 +74,10 @@ export interface RoutePath {
   totalDuration: number;
   geometry: [number, number][];
 }
+export interface NextStopGuidance {
+  stopIndex: number;
+  stopName: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  geometry: [number, number][];
+}

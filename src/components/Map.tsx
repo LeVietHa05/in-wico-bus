@@ -3,7 +3,7 @@
 import { MapContainer, TileLayer, Marker, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { Stop } from '@/lib/types';
+import { Stop, NextStopGuidance } from '@/lib/types';
 
 const defaultCenter: [number, number] = [21.010055759332513, 105.7948062944532];
 
@@ -12,17 +12,30 @@ interface MapProps {
   currentLocation?: { lat: number; lng: number } | null;
   visitedStopIds?: string[];
   routeGeometry?: [number, number][];
+  nextStopGuidance?: NextStopGuidance | null;
 }
 
-function createNumberIcon(n: number, visited: boolean): L.DivIcon {
+function createVisitedIcon(n: number): L.DivIcon {
   return L.divIcon({
-    html: `<div style="
-      width: 28px; height: 28px; border-radius: 50%;
-      background: ${visited ? '#22c55e' : '#3b82f6'};
-      color: white; display: flex; align-items: center;
-      justify-content: center; font-size: 12px; font-weight: 700;
-      border: 2px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    ">${n}</div>`,
+    html: `<div style="width:28px;height:28px;border-radius:50%;background:#22c55e;color:white;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3)">${n}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    className: '',
+  });
+}
+
+function createRecommendedIcon(n: number): L.DivIcon {
+  return L.divIcon({
+    html: `<div style="width:32px;height:32px;border-radius:50%;background:#f97316;color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:3px solid white;box-shadow:0 0 0 3px #f97316, 0 2px 6px rgba(0,0,0,0.4)">${n}</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    className: '',
+  });
+}
+
+function createUnvisitedIcon(n: number): L.DivIcon {
+  return L.divIcon({
+    html: `<div style="width:28px;height:28px;border-radius:50%;background:transparent;color:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px dashed #3b82f6;box-shadow:0 1px 3px rgba(0,0,0,0.15)">${n}</div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
     className: '',
@@ -42,7 +55,7 @@ const busIcon = L.divIcon({
   className: '',
 });
 
-export default function Map({ stops = [], currentLocation = null, visitedStopIds = [], routeGeometry }: MapProps) {
+export default function Map({ stops = [], currentLocation = null, visitedStopIds = [], routeGeometry, nextStopGuidance }: MapProps) {
   const sortedStops = [...stops].sort((a, b) => a.order - b.order);
   const straightPath: [number, number][] = sortedStops.map((s) => [s.lat, s.lng]);
   const hasRouteGeometry = routeGeometry && routeGeometry.length > 1;
@@ -66,21 +79,34 @@ export default function Map({ stops = [], currentLocation = null, visitedStopIds
       {hasRouteGeometry ? (
         <Polyline
           positions={routeGeometry}
-          pathOptions={{ color: '#3b82f6', opacity: 0.8, weight: 4 }}
+          pathOptions={{ color: '#3b82f6', opacity: 0.3, weight: 2, dashArray: '6 3' }}
         />
       ) : straightPath.length > 1 && (
         <Polyline
           positions={straightPath}
-          pathOptions={{ color: '#3b82f6', opacity: 0.5, weight: 2, dashArray: '8 4' }}
+          pathOptions={{ color: '#3b82f6', opacity: 0.4, weight: 2, dashArray: '8 5' }}
+        />
+      )}
+      {nextStopGuidance && nextStopGuidance.geometry.length > 1 && (
+        <Polyline
+          positions={nextStopGuidance.geometry}
+          pathOptions={{ color: '#f97316', opacity: 0.9, weight: 5 }}
         />
       )}
       {sortedStops.map((stop, i) => {
         const visited = visitedStopIds.includes(stop.id);
+        const recommended = nextStopGuidance?.stopIndex === i;
+        const keyState = visited ? 'v' : recommended ? 'r' : 'u';
+        const icon = visited
+          ? createVisitedIcon(i + 1)
+          : recommended
+          ? createRecommendedIcon(i + 1)
+          : createUnvisitedIcon(i + 1);
         return (
           <Marker
-            key={`${stop.id}-${visited ? 'v' : 'u'}`}
+            key={`${stop.id}-${keyState}`}
             position={[stop.lat, stop.lng]}
-            icon={createNumberIcon(i + 1, visited)}
+            icon={icon}
           />
         );
       })}

@@ -3,10 +3,11 @@ import {
   getNavState, setNavState, getGPSData, getAttendance,
   setRouteHistory, getRouteHistory, updateRouteHistory, clearRouteHistory,
   getCachedRoutePath, setCachedRoutePath,
+  findNearestUnvisitedStop, getGuidanceCache, setGuidanceCache,
 } from '@/lib/store';
 import { getRoutes, appendRouteHistory, saveRouteHistories, getRouteHistories } from '@/lib/google-sheets';
 import { RouteHistory } from '@/lib/types';
-import { fetchORSDrivePath } from '@/lib/openroute';
+import { fetchORSDrivePath, fetchORSGuidance } from '@/lib/openroute';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function GET() {
@@ -15,6 +16,7 @@ export async function GET() {
     let routeHistory = null;
     let gps = null;
     let routePath = null;
+    let nextStopGuidance = null;
     let attendance: Array<{ studentId: string; studentName: string; isPresent: boolean; timestamp: string }> = [];
 
     if (state.currentRouteHistoryId) {
@@ -23,6 +25,55 @@ export async function GET() {
         gps = getGPSData(routeHistory.routeId) || null;
         attendance = getAttendance(state.currentRouteHistoryId);
         routePath = getCachedRoutePath(routeHistory.routeId) || null;
+
+        if (gps && routeHistory.stopsProgress) {
+          const { getRoutes } = await import('@/lib/google-sheets');
+          const routes = await getRoutes();
+          const route = routes.find((r) => r.id === routeHistory!.routeId);
+          if (route) {
+            const nearest = findNearestUnvisitedStop(
+              gps.lat, gps.lng, route.stops, routeHistory.stopsProgress
+            );
+            if (nearest) {
+              const cacheKey = `guidance:${route.id}:${nearest.stopIndex}`;
+              const cached = getGuidanceCache(cacheKey);
+              if (cached) {
+                nextStopGuidance = {
+                  stopIndex: nearest.stopIndex,
+                  stopName: nearest.stop.name,
+                  distanceMeters: cached.distanceMeters,
+                  durationSeconds: cached.durationSeconds,
+                  geometry: cached.geometry,
+                };
+              } else {
+                try {
+                  const orsData = await fetchORSGuidance(gps.lat, gps.lng, nearest.stop.lat, nearest.stop.lng);
+                  setGuidanceCache(cacheKey, {
+                    distanceMeters: orsData.distance,
+                    durationSeconds: orsData.duration,
+                    geometry: orsData.geometry,
+                  });
+                  nextStopGuidance = {
+                    stopIndex: nearest.stopIndex,
+                    stopName: nearest.stop.name,
+                    distanceMeters: orsData.distance,
+                    durationSeconds: orsData.duration,
+                    geometry: orsData.geometry,
+                  };
+                } catch {
+                  // fallback: haversine distance, no geometry
+                  nextStopGuidance = {
+                    stopIndex: nearest.stopIndex,
+                    stopName: nearest.stop.name,
+                    distanceMeters: nearest.distance,
+                    durationSeconds: Math.round(nearest.distance / 8.33), // ~30 km/h avg
+                    geometry: [],
+                  };
+                }
+              }
+            }
+          }
+        }
       }
     }
 
@@ -33,6 +84,7 @@ export async function GET() {
         currentGPS: gps,
         attendance,
         routePath,
+        nextStopGuidance,
       },
     });
   } catch {
