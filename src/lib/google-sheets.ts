@@ -114,16 +114,20 @@ export async function getStudents(): Promise<Student[]> {
     name: row[1] || '',
     rfidTag: row[2] || '',
     routeIds: row[3] ? JSON.parse(row[3]) : [],
+    parentName: row[4] || '',
+    parentEmail: row[5] || '',
   }));
 }
 
 export async function saveStudents(students: Student[]): Promise<void> {
-  const headers = ['id', 'name', 'rfidTag', 'routeIds'];
+  const headers = ['id', 'name', 'rfidTag', 'routeIds', 'parentName', 'parentEmail'];
   const data = students.map((s) => [
     s.id,
     s.name,
     s.rfidTag,
     JSON.stringify(s.routeIds),
+    s.parentName,
+    s.parentEmail,
   ]);
   await writeSheet('Students', headers, data);
 }
@@ -190,7 +194,7 @@ export async function initSheets(): Promise<void> {
   const client = getClient();
   const sheetDefaults: Record<string, string[]> = {
     Routes: ['id', 'name', 'stops', 'studentIds'],
-    Students: ['id', 'name', 'rfidTag', 'routeIds'],
+    Students: ['id', 'name', 'rfidTag', 'routeIds', 'parentName', 'parentEmail'],
     Attendance: ['routeHistoryId', 'studentId', 'studentName', 'isPresent', 'timestamp'],
     RouteHistory: ['id', 'routeId', 'startTime', 'endTime', 'attendanceStr', 'stopsProgress', 'status'],
   };

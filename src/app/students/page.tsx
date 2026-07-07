@@ -11,6 +11,8 @@ export default function StudentsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState('');
   const [formRfid, setFormRfid] = useState('');
+  const [formParentName, setFormParentName] = useState('');
+  const [formParentEmail, setFormParentEmail] = useState('');
   const [formRouteIds, setFormRouteIds] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -37,6 +39,8 @@ export default function StudentsPage() {
   const resetForm = () => {
     setFormName('');
     setFormRfid('');
+    setFormParentName('');
+    setFormParentEmail('');
     setFormRouteIds([]);
     setEditingId(null);
     setShowForm(false);
@@ -47,6 +51,8 @@ export default function StudentsPage() {
   const openEdit = (student: Student) => {
     setFormName(student.name);
     setFormRfid(student.rfidTag);
+    setFormParentName(student.parentName || '');
+    setFormParentEmail(student.parentEmail || '');
     setFormRouteIds(student.routeIds);
     setEditingId(student.id);
     setShowForm(true);
@@ -83,6 +89,8 @@ export default function StudentsPage() {
         body: JSON.stringify({
           name: formName.trim(),
           rfidTag: formRfid.trim(),
+          parentName: formParentName.trim(),
+          parentEmail: formParentEmail.trim(),
           routeIds: formRouteIds,
         }),
       });
@@ -165,8 +173,31 @@ export default function StudentsPage() {
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Routes</label>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Parent Name</label>
+              <input
+                type="text"
+                value={formParentName}
+                onChange={(e) => setFormParentName(e.target.value)}
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                placeholder="e.g. Jane Doe"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Parent Email</label>
+              <input
+                type="email"
+                value={formParentEmail}
+                onChange={(e) => setFormParentEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                placeholder="e.g. parent@example.com"
+              />
+            </div>
+          </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Routes</label>
             {routes.length === 0 ? (
               <p className="text-sm text-gray-400">No routes available. Create routes first.</p>
             ) : (

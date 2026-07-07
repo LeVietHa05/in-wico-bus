@@ -18,6 +18,8 @@ export interface Student {
   name: string;
   rfidTag: string;
   routeIds: string[];
+  parentName: string;
+  parentEmail: string;
 }
 
 export interface GPSData {

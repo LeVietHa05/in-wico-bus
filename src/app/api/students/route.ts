@@ -28,7 +28,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, rfidTag, routeIds } = body;
+    const { name, rfidTag, routeIds, parentName, parentEmail } = body;
 
     if (!name || !rfidTag) {
       return NextResponse.json({ error: 'Name and RFID tag are required' }, { status: 400 });
@@ -45,6 +45,8 @@ export async function POST(request: NextRequest) {
       name,
       rfidTag,
       routeIds: routeIds || [],
+      parentName: parentName || '',
+      parentEmail: parentEmail || '',
     };
 
     students.push(newStudent);

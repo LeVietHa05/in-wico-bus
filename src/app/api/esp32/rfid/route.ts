@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { addAttendance, getRouteHistory, updateRouteHistory, getAttendance } from '@/lib/store';
 import { getStudents } from '@/lib/google-sheets';
 import { appendAttendanceLog } from '@/lib/google-sheets';
+import { sendParentNotification } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { routeHistoryId, rfidTag } = body;
+    const { routeHistoryId, rfidTag, event } = body;
 
     if (!routeHistoryId || !rfidTag) {
       return NextResponse.json({ error: 'Missing required fields: routeHistoryId, rfidTag' }, { status: 400 });
@@ -24,35 +25,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unknown RFID tag' }, { status: 404 });
     }
 
+    const eventType: 'in' | 'out' = event === 'out' ? 'out' : 'in';
     const timestamp = new Date().toISOString();
-    const record = {
-      studentId: student.id,
-      routeHistoryId,
-      studentName: student.name,
-      isPresent: true,
-      timestamp,
-    };
 
-    addAttendance(record);
-
-    const attendance = getAttendance(routeHistoryId);
-    const total = rh.attendanceStr.split('/')[1] || '0';
-    const present = attendance.filter((a) => a.isPresent).length;
-    updateRouteHistory(routeHistoryId, { attendanceStr: `${present}/${total}` });
-
-    try {
-      await appendAttendanceLog([{
-        routeHistoryId,
+    if (eventType === 'in') {
+      const record = {
         studentId: student.id,
+        routeHistoryId,
         studentName: student.name,
-        isPresent: 'true',
+        isPresent: true,
         timestamp,
-      }]);
-    } catch {
-      // best-effort
+      };
+
+      addAttendance(record);
+
+      const attendance = getAttendance(routeHistoryId);
+      const total = rh.attendanceStr.split('/')[1] || '0';
+      const present = attendance.filter((a) => a.isPresent).length;
+      updateRouteHistory(routeHistoryId, { attendanceStr: `${present}/${total}` });
+
+      try {
+        await appendAttendanceLog([{
+          routeHistoryId,
+          studentId: student.id,
+          studentName: student.name,
+          isPresent: 'true',
+          timestamp,
+        }]);
+      } catch {
+        // best-effort
+      }
     }
 
-    return NextResponse.json({ success: true, data: record });
+    if (student.parentEmail) {
+      try {
+        await sendParentNotification({
+          parentEmail: student.parentEmail,
+          studentName: student.name,
+          eventType,
+          timestamp,
+        });
+      } catch {
+        // best-effort
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: { studentId: student.id, routeHistoryId, studentName: student.name, eventType, timestamp },
+    });
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
